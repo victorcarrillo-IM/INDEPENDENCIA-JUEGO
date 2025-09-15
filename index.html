@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Aventura de la Independencia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #333;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none; /* Prevents scrolling on touch devices */
+        }
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        canvas {
+            background-color: #679D6B; /* Greenish field color */
+            border: 4px solid #38281d;
+            border-radius: 8px;
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 16/9;
+        }
+        .screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 100;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .start-title {
+            font-size: 2.5rem;
+            color: #FFD700;
+            text-shadow: 4px 4px #c1440e;
+        }
+        .start-button {
+            font-family: 'Press Start 2P', cursive;
+            background: #4CAF50;
+            border: 4px solid #2e7d32;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            font-size: 16px;
+            margin-top: 20px;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 5px #1b5e20;
+            transition: all 0.1s ease-in-out;
+        }
+        .start-button:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 #1b5e20;
+        }
+        #quiz-modal {
+            width: clamp(300px, 90%, 600px);
+            background: #f0e6d2;
+            color: #38281d;
+            border: 8px solid #8c5a3b;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .answer-btn {
+            font-family: 'Press Start 2P', cursive;
+            background: #d4a373;
+            border: 4px solid #8c5a3b;
+            color: #38281d;
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .answer-btn:hover {
+            background: #faedcd;
+        }
+        
+        /* D-PAD STYLES */
+        #dpad-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 150px;
+            height: 150px;
+            z-index: 50;
+        }
+        .dpad-btn {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(60, 60, 60, 0.7);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+        .dpad-btn.up { top: 0; left: 50px; }
+        .dpad-btn.down { bottom: 0; left: 50px; }
+        .dpad-btn.left { top: 50px; left: 0; }
+        .dpad-btn.right { top: 50px; right: 0; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1 class="start-title">Aventura de la Independencia</h1>
+            <p class="mt-4">¡Controla a Miguel Hidalgo!</p>
+            <p class="mt-2">Derrota a los soldados y forma tu ejército.</p>
+            <p class="mt-2">Usa las flechas del teclado o el D-pad.</p>
+            <button id="start-btn" class="start-button">¡Empezar!</button>
+        </div>
+
+        <div id="game-over-screen" class="screen-overlay hidden">
+            <h1 id="game-over-title" class="start-title">¡Fin del Juego!</h1>
+            <p class="text-2xl mt-4">Puntaje Final: <span id="final-score">0</span></p>
+            <button id="restart-btn" class="start-button">Jugar de Nuevo</button>
+        </div>
+
+        <div id="level-transition-screen" class="screen-overlay hidden">
+            <h1 class="start-title">¡Nivel Completo!</h1>
+            <p class="text-2xl mt-4">Preparando el <span id="level-text"></span>...</p>
+        </div>
+        
+        <div id="quiz-modal-container" class="screen-overlay hidden">
+            <div id="quiz-modal">
+                <h2 id="question-text" class="text-lg mb-4"></h2>
+                <div id="answers-container"></div>
+            </div>
+        </div>
+        
+        <!-- D-PAD for mobile -->
+        <div id="dpad-container">
+            <div class="dpad-btn up" data-direction="up">▲</div>
+            <div class="dpad-btn down" data-direction="down">▼</div>
+            <div class="dpad-btn left" data-direction="left">◄</div>
+            <div class="dpad-btn right" data-direction="right">►</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const levelTransitionScreen = document.getElementById('level-transition-screen');
+        const levelText = document.getElementById('level-text');
+        const quizModalContainer = document.getElementById('quiz-modal-container');
+        const questionTextEl = document.getElementById('question-text');
+        const answersContainerEl = document.getElementById('answers-container');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const finalScoreEl = document.getElementById('final-score');
+        const gameOverTitle = document.getElementById('game-over-title');
+
+        let player, enemies, allies, score, lives, gameActive, currentEnemy, currentLevel, scenery, currentQuestionIndex;
+        const keys = { up: false, down: false, left: false, right: false };
+        const levelConfig = [ { enemies: 3 }, { enemies: 5 }, { enemies: 7 } ];
+
+        const questions = [
+             { question: '¿Quién es conocido como "El Padre de la Patria"?', answers: [{ text: 'José María Morelos', correct: false }, { text: 'Miguel Hidalgo', correct: true }, { text: 'Ignacio Allende', correct: false }, { text: 'Agustín de Iturbide', correct: false }] },
+             { question: '¿En qué fecha inició la Independencia?', answers: [{ text: '5 de Mayo', correct: false }, { text: '20 de Noviembre', correct: false }, { text: '16 de Septiembre', correct: true }, { text: '27 de Septiembre', correct: false }] },
+             { question: '¿Cómo se les llamaba a los hijos de españoles nacidos en América?', answers: [{ text: 'Mestizos', correct: false }, { text: 'Peninsulares', correct: false }, { text: 'Indígenas', correct: false }, { text: 'Criollos', correct: true }] },
+             { question: '¿En qué ciudad se planeaba en secreto la independencia?', answers: [{ text: 'Ciudad de México', correct: false }, { text: 'Guadalajara', correct: false }, { text: 'Querétaro', correct: true }, { text: 'Puebla', correct: false }] },
+             { question: '¿Qué mujer avisó que la conspiración fue descubierta?', answers: [{ text: 'Leona Vicario', correct: false }, { text: 'Josefa Ortiz de Domínguez', correct: true }, { text: 'La Malinche', correct: false }, { text: 'Sor Juana', correct: false }] },
+             { question: '¿Qué imagen usó Miguel Hidalgo en su estandarte?', answers: [{ text: 'Un águila', correct: false }, { text: 'La Virgen de Guadalupe', correct: true }, { text: 'La campana de Dolores', correct: false }, { text: 'El rey de España', correct: false }] },
+             { question: '¿En qué pueblo dio Miguel Hidalgo el "Grito de Independencia"?', answers: [{ text: 'Querétaro', correct: false }, { text: 'Guanajuato', correct: false }, { text: 'Dolores', correct: true }, { text: 'Acapulco', correct: false }] },
+             { question: '¿Qué usó Miguel Hidalgo para llamar a la gente a luchar?', answers: [{ text: 'Una trompeta', correct: false }, { text: 'Un cañón', correct: false }, { text: 'La campana de la iglesia', correct: true }, { text: 'Un tambor', correct: false }] },
+             { question: '¿Cómo se llamaba el valiente que quemó la puerta de la Alhóndiga de Granaditas?', answers: [{ text: 'Morelos', correct: false }, { text: 'El Pípila', correct: true }, { text: 'Allende', correct: false }, { text: 'Vicente Guerrero', correct: false }] },
+             { question: '¿Cuál era el apodo de José María Morelos y Pavón?', answers: [{ text: 'El Padre de la Patria', correct: false }, { text: 'El Libertador', correct: false }, { text: 'El Siervo de la Nación', correct: true }, { text: 'El Centauro del Norte', correct: false }] },
+             { question: '¿Qué documento escribió José María Morelos?', answers: [{ text: 'El Plan de Iguala', correct: false }, { text: 'Acta de Independencia', correct: false }, { text: 'Sentimientos de la Nación', correct: true }, { text: 'Constitución de 1824', correct: false }] },
+             { question: '¿Cuántos años duró la guerra de Independencia aproximadamente?', answers: [{ text: '5 años', correct: false }, { text: '20 años', correct: false }, { text: '11 años', correct: true }, { text: '2 años', correct: false }] },
+             { question: '¿Quiénes se dieron el "Abrazo de Acatempan"?', answers: [{ text: 'Hidalgo y Allende', correct: false }, { text: 'Morelos y Bravo', correct: false }, { text: 'Guerrero e Iturbide', correct: true }, { text: 'Juárez y Maximiliano', correct: false }] },
+             { question: '¿Qué ejército consumó la independencia?', answers: [{ text: 'Ejército Insurgente', correct: false }, { text: 'Ejército Realista', correct: false }, { text: 'Ejército Mexicano', correct: false }, { text: 'Ejército Trigarante', correct: true }] },
+             { question: '¿Cuáles eran los colores del Ejército Trigarante?', answers: [{ text: 'Rojo, blanco y azul', correct: false }, { text: 'Verde, blanco y rojo', correct: true }, { text: 'Amarillo, azul y rojo', correct: false }, { text: 'Sólo verde y rojo', correct: false }] },
+             { question: '¿Quién fue el primer emperador de México?', answers: [{ text: 'Vicente Guerrero', correct: false }, { text: 'Guadalupe Victoria', correct: false }, { text: 'Agustín de Iturbide', correct: true }, { text: 'Hernán Cortés', correct: false }] }
+        ];
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            const aspectRatio = 16 / 9;
+            let newWidth = container.clientWidth;
+            let newHeight = container.clientHeight;
+
+            if (newWidth / newHeight > aspectRatio) {
+                newWidth = newHeight * aspectRatio;
+            } else {
+                newHeight = newWidth / aspectRatio;
+            }
+            canvas.width = 1280; // internal resolution
+            canvas.height = 720;
+            canvas.style.width = `${newWidth}px`;
+            canvas.style.height = `${newHeight}px`;
+        }
+        
+        function drawPlayer() {
+            ctx.fillStyle = '#f0e6d2'; // Skin tone
+            ctx.fillRect(player.x + 5, player.y, 20, 15); // Head
+            ctx.fillStyle = '#38281d'; // Dark brown for cassock/hair
+            ctx.fillRect(player.x, player.y + 15, 30, 30); // Body
+            ctx.fillRect(player.x + 5, player.y + 5, 20, 5); // Hair fringe
+            
+            // Estandarte (Banner)
+            ctx.fillStyle = '#8c5a3b'; // Pole
+            ctx.fillRect(player.x + 30, player.y - 10, 5, 55);
+            ctx.fillStyle = '#ffffff'; // Banner cloth
+            ctx.fillRect(player.x + 35, player.y - 5, 30, 20);
+            ctx.fillStyle = '#006847'; // Green part of banner
+            ctx.fillRect(player.x + 35, player.y - 5, 10, 20);
+            ctx.fillStyle = '#CE1126'; // Red part of banner
+            ctx.fillRect(player.x + 55, player.y - 5, 10, 20);
+        }
+
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                ctx.fillStyle = '#CE1126'; // Red uniform
+                ctx.fillRect(enemy.x, enemy.y + 10, 25, 25);
+                ctx.fillStyle = '#f0e6d2'; // Skin tone
+                ctx.fillRect(enemy.x + 5, enemy.y, 15, 10);
+                ctx.fillStyle = '#333'; // Hat
+                ctx.fillRect(enemy.x, enemy.y, 25, 5);
+            });
+        }
+
+        function drawAllies() {
+            allies.forEach(ally => {
+                ctx.fillStyle = '#f0e6d2'; // Skin tone
+                ctx.fillRect(ally.x + 5, ally.y, 15, 10); // Head
+                ctx.fillStyle = '#ffffff'; // White clothes (manta)
+                ctx.fillRect(ally.x, ally.y + 10, 25, 20); // Body
+            });
+        }
+        
+        function drawScenery() {
+            scenery.forEach(building => {
+                // Building base
+                ctx.fillStyle = building.color;
+                ctx.fillRect(building.x, building.y, building.width, building.height);
+                // Building roof
+                ctx.fillStyle = building.roofColor;
+                ctx.beginPath();
+                ctx.moveTo(building.x - 10, building.y);
+                ctx.lineTo(building.x + building.width + 10, building.y);
+                ctx.lineTo(building.x + building.width / 2, building.y - 30);
+                ctx.closePath();
+                ctx.fill();
+
+                // Cathedral specific details
+                if (building.isCathedral) {
+                    ctx.fillStyle = '#38281d'; // Cross color
+                    // Vertical part of cross
+                    ctx.fillRect(building.x + building.width / 2 - 5, building.y - 60, 10, 30);
+                    // Horizontal part of cross
+                    ctx.fillRect(building.x + building.width / 2 - 15, building.y - 50, 30, 10);
+                }
+            });
+        }
+
+        function drawLives() {
+            for (let i = 0; i < lives; i++) {
+                const x = canvas.width - 50 - (i * 45);
+                const y = 30;
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.moveTo(x, y + 10);
+                ctx.bezierCurveTo(x, y, x - 15, y, x - 15, y + 10);
+                ctx.bezierCurveTo(x - 15, y + 20, x, y + 30, x, y + 30);
+                ctx.bezierCurveTo(x, y + 30, x + 15, y + 20, x + 15, y + 10);
+                ctx.bezierCurveTo(x + 15, y, x, y, x, y + 10);
+                ctx.fill();
+            }
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            // Player movement
+            if (keys.up && player.y > 0) player.y -= player.speed;
+            if (keys.down && player.y < canvas.height - player.height) player.y += player.speed;
+            if (keys.left && player.x > 0) player.x -= player.speed;
+            if (keys.right && player.x < canvas.width - player.width) player.x += player.speed;
+            
+            // Ally movement (follow the leader)
+            let target = player;
+            for (const ally of allies) {
+                const dx = target.x - ally.x;
+                const dy = target.y - ally.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > 40) { // Keep some distance
+                    ally.x += (dx / distance) * (player.speed - 1);
+                    ally.y += (dy / distance) * (player.speed - 1);
+                }
+                target = ally;
+            }
+
+            // Collision detection
+            enemies.forEach((enemy) => {
+                if (
+                    player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y
+                ) {
+                    handleCollision(enemy);
+                }
+            });
+        }
+        
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!player) return;
+
+            drawScenery();
+            drawAllies();
+            drawPlayer();
+            drawEnemies();
+            
+            // Draw UI
+            ctx.fillStyle = 'white';
+            ctx.font = '24px "Press Start 2P"';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Puntaje: ${score}`, 20, 40);
+            ctx.textAlign = 'center';
+            ctx.fillText(`Nivel: ${currentLevel}`, canvas.width / 2, 40);
+            drawLives();
+        }
+
+        function handleCollision(enemy) {
+            gameActive = false;
+            currentEnemy = enemy;
+            showQuiz();
+        }
+
+        function showQuiz() {
+            if (currentQuestionIndex >= questions.length) {
+                currentQuestionIndex = 0; // Loop back to the first question if we run out
+            }
+            const question = questions[currentQuestionIndex];
+            currentQuestionIndex++; // Prepare for the next question
+
+            questionTextEl.textContent = question.question;
+            answersContainerEl.innerHTML = '';
+            
+            question.answers.forEach(answer => {
+                const button = document.createElement('button');
+                button.textContent = answer.text;
+                button.classList.add('answer-btn');
+                button.addEventListener('click', () => selectAnswer(answer.correct));
+                answersContainerEl.appendChild(button);
+            });
+            quizModalContainer.classList.remove('hidden');
+        }
+
+        function selectAnswer(isCorrect) {
+            quizModalContainer.classList.add('hidden');
+            if (isCorrect) {
+                score += 100;
+                const newAlly = { x: player.x, y: player.y };
+                allies.push(newAlly);
+                
+                enemies = enemies.filter(e => e !== currentEnemy);
+                if (enemies.length === 0) {
+                    if (currentLevel >= levelConfig.length) {
+                        endGame(true);
+                    } else {
+                        showLevelTransition();
+                    }
+                }
+            } else {
+                lives--;
+                if (lives <= 0) {
+                    endGame(false);
+                }
+            }
+            if(lives > 0 && enemies.length > 0) {
+                 gameActive = true;
+            }
+            currentEnemy = null;
+        }
+
+        function showLevelTransition() {
+            gameActive = false;
+            currentLevel++;
+            levelText.textContent = `Nivel ${currentLevel}`;
+            levelTransitionScreen.classList.remove('hidden');
+
+            setTimeout(() => {
+                levelTransitionScreen.classList.add('hidden');
+                startLevel(currentLevel);
+            }, 3000);
+        }
+
+        function endGame(playerWon) {
+            gameActive = false;
+            gameOverScreen.classList.remove('hidden');
+            finalScoreEl.textContent = score;
+            if(playerWon) {
+                gameOverTitle.textContent = "¡Victoria!";
+            } else {
+                gameOverTitle.textContent = "¡Fin del Juego!";
+            }
+        }
+        
+        function isCollidingWithScenery(rect) {
+            for (const building of scenery) {
+                if (
+                    rect.x < building.x + building.width &&
+                    rect.x + rect.width > building.x &&
+                    rect.y < building.y + building.height &&
+                    rect.y + rect.height > building.y
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        function startLevel(levelNum) {
+            player.x = 50;
+            player.y = canvas.height / 2 - 25;
+
+            enemies = [];
+            const numEnemies = levelConfig[levelNum - 1].enemies;
+
+            for (let i = 0; i < numEnemies; i++) {
+                let newEnemy;
+                do {
+                    newEnemy = {
+                        x: Math.random() * (canvas.width - 100) + 50,
+                        y: Math.random() * (canvas.height - 100) + 50,
+                        width: 25,
+                        height: 35
+                    };
+                } while(isCollidingWithScenery(newEnemy));
+                enemies.push(newEnemy);
+            }
+            gameActive = true;
+        }
+
+        function createScenery() {
+            scenery = [];
+            // Cathedral
+            scenery.push({ 
+                x: canvas.width / 2 - 75, y: canvas.height / 2 - 100, 
+                width: 150, height: 200, 
+                color: '#E0C9A6', roofColor: '#8B4513', isCathedral: true 
+            });
+            // Other buildings
+            scenery.push({ x: 100, y: 80, width: 120, height: 150, color: '#D2B48C', roofColor: '#A0522D' });
+            scenery.push({ x: canvas.width - 220, y: 80, width: 120, height: 180, color: '#C68642', roofColor: '#A0522D' });
+            scenery.push({ x: 100, y: canvas.height - 230, width: 150, height: 150, color: '#DEB887', roofColor: '#A0522D' });
+            scenery.push({ x: canvas.width - 250, y: canvas.height - 250, width: 150, height: 170, color: '#D2B48C', roofColor: '#A0522D' });
+        }
+
+        function startGame() {
+            player = { x: 50, y: canvas.height / 2 - 25, width: 65, height: 45, speed: 5 };
+            allies = [];
+            score = 0;
+            lives = 3;
+            currentLevel = 1;
+            currentQuestionIndex = 0;
+            
+            createScenery();
+
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            quizModalContainer.classList.add('hidden');
+            
+            startLevel(currentLevel);
+        }
+
+        // Event Listeners
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            createScenery(); // Re-create scenery on resize to adapt to new canvas size
+        });
+        
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+        // Keyboard controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') keys.up = true;
+            if (e.key === 'ArrowDown') keys.down = true;
+            if (e.key === 'ArrowLeft') keys.left = true;
+            if (e.key === 'ArrowRight') keys.right = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowUp') keys.up = false;
+            if (e.key === 'ArrowDown') keys.down = false;
+            if (e.key === 'ArrowLeft') keys.left = false;
+            if (e.key === 'ArrowRight') keys.right = false;
+        });
+
+        // D-Pad controls
+        const dpadButtons = document.querySelectorAll('.dpad-btn');
+        dpadButtons.forEach(btn => {
+            const direction = btn.dataset.direction;
+            btn.addEventListener('mousedown', () => keys[direction] = true);
+            btn.addEventListener('mouseup', () => keys[direction] = false);
+            btn.addEventListener('mouseleave', () => keys[direction] = false); // Stop if mouse leaves button
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                keys[direction] = true;
+            });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                keys[direction] = false;
+            });
+        });
+
+        // Initial Setup
+        resizeCanvas();
+        gameLoop();
+    </script>
+</body>
+</html>
+
