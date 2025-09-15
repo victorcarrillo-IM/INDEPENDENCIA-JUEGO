@@ -180,9 +180,9 @@
         const finalScoreEl = document.getElementById('final-score');
         const gameOverTitle = document.getElementById('game-over-title');
 
-        let player, enemies, allies, score, lives, gameActive, currentEnemy, currentLevel, scenery, currentQuestionIndex;
+        let player, enemies, boss, allies, morelos, projectiles, score, lives, gameActive, currentEnemy, currentLevel, scenery, currentQuestionIndex, pipila, pipilaEasterEggTriggered, easterEggMessage, morelosMessage;
         const keys = { up: false, down: false, left: false, right: false };
-        const levelConfig = [ { enemies: 3 }, { enemies: 5 }, { enemies: 7 } ];
+        const levelConfig = [ { enemies: 3 }, { enemies: 5 }, { enemies: 1, isBossLevel: true } ];
 
         const questions = [
              { question: '¿Quién es conocido como "El Padre de la Patria"?', answers: [{ text: 'José María Morelos', correct: false }, { text: 'Miguel Hidalgo', correct: true }, { text: 'Ignacio Allende', correct: false }, { text: 'Agustín de Iturbide', correct: false }] },
@@ -220,22 +220,26 @@
             canvas.style.height = `${newHeight}px`;
         }
         
-        function drawPlayer() {
+        function drawPlayer(x, y) {
             ctx.fillStyle = '#f0e6d2'; // Skin tone
-            ctx.fillRect(player.x + 5, player.y, 20, 15); // Head
+            ctx.fillRect(x + 5, y, 20, 15); // Head
             ctx.fillStyle = '#38281d'; // Dark brown for cassock/hair
-            ctx.fillRect(player.x, player.y + 15, 30, 30); // Body
-            ctx.fillRect(player.x + 5, player.y + 5, 20, 5); // Hair fringe
+            ctx.fillRect(x, y + 15, 30, 30); // Body
+            ctx.fillRect(x + 5, y + 5, 20, 5); // Hair fringe
             
-            // Estandarte (Banner)
+            // Estandarte de la Virgen de Guadalupe
             ctx.fillStyle = '#8c5a3b'; // Pole
-            ctx.fillRect(player.x + 30, player.y - 10, 5, 55);
-            ctx.fillStyle = '#ffffff'; // Banner cloth
-            ctx.fillRect(player.x + 35, player.y - 5, 30, 20);
-            ctx.fillStyle = '#006847'; // Green part of banner
-            ctx.fillRect(player.x + 35, player.y - 5, 10, 20);
-            ctx.fillStyle = '#CE1126'; // Red part of banner
-            ctx.fillRect(player.x + 55, player.y - 5, 10, 20);
+            ctx.fillRect(x + 30, y - 10, 5, 55);
+            ctx.fillStyle = '#D2B48C'; // Tan cloth color
+            ctx.fillRect(x + 35, y - 5, 30, 25); // Slightly larger banner
+            // Simplified image of the Virgin
+            ctx.fillStyle = '#4169E1'; // Royal blue for the mantle
+            ctx.fillRect(x + 45, y, 10, 15);
+            ctx.fillStyle = '#FFD700'; // Gold accents/rays
+            ctx.fillRect(x + 38, y - 2, 5, 5);
+            ctx.fillRect(x + 57, y - 2, 5, 5);
+            ctx.fillRect(x + 38, y + 20, 5, 5);
+            ctx.fillRect(x + 57, y + 20, 5, 5);
         }
 
         function drawEnemies() {
@@ -248,6 +252,27 @@
                 ctx.fillRect(enemy.x, enemy.y, 25, 5);
             });
         }
+        
+        function drawBoss() {
+            if (!boss) return;
+            // Body
+            ctx.fillStyle = boss.state === 'stunned' ? '#808080' : '#003366'; // Grey when stunned
+            ctx.fillRect(boss.x, boss.y + 23, 60, 68); // Bigger body
+            // Head
+            ctx.fillStyle = '#f0e6d2';
+            ctx.fillRect(boss.x + 15, boss.y, 30, 23); // Bigger head
+            // Fancy Hat
+            ctx.fillStyle = '#333';
+            ctx.fillRect(boss.x - 7, boss.y, 75, 12); // Bigger hat
+            ctx.fillStyle = '#FFD700'; // Gold trim
+            ctx.fillRect(boss.x - 7, boss.y - 5, 75, 5);
+            
+            // Health bar
+            ctx.fillStyle = '#555';
+            ctx.fillRect(boss.x - 7, boss.y - 20, 75, 10);
+            ctx.fillStyle = 'green';
+            ctx.fillRect(boss.x - 7, boss.y - 20, 75 * (boss.health / 3), 10);
+        }
 
         function drawAllies() {
             allies.forEach(ally => {
@@ -258,6 +283,43 @@
             });
         }
         
+        function drawMorelos(x, y) {
+             // Head with paliacate
+            ctx.fillStyle = '#f0e6d2'; // Skin tone
+            ctx.fillRect(x + 5, y, 20, 15);
+            ctx.fillStyle = '#ffffff'; // White paliacate
+            ctx.fillRect(x + 3, y, 24, 8);
+            // Body
+            ctx.fillStyle = '#4B0082'; // Indigo uniform
+            ctx.fillRect(x, y + 15, 30, 30);
+            // Musket
+            ctx.fillStyle = '#8B4513'; // Brown
+            ctx.fillRect(x - 10, y + 20, 20, 5);
+        }
+
+        function drawProjectiles() {
+            ctx.fillStyle = '#FFD700'; // Gold color for bullets
+            projectiles.forEach(p => {
+                ctx.fillRect(p.x, p.y, 12, 6); // Bigger bullets
+            });
+        }
+        
+        function drawPipila() {
+            if (!pipila || !pipila.active) return;
+            
+            // The stone slab on his back
+            ctx.fillStyle = '#8D8D8D'; // Grey for stone
+            ctx.fillRect(pipila.x, pipila.y, 30, 30);
+            
+            // Body (partially visible)
+            ctx.fillStyle = '#ffffff'; // White clothes
+            ctx.fillRect(pipila.x + 5, pipila.y + 25, 20, 15);
+            
+            // Head
+            ctx.fillStyle = '#f0e6d2'; // Skin tone
+            ctx.fillRect(pipila.x + 10, pipila.y + 15, 10, 10);
+        }
+
         function drawScenery() {
             scenery.forEach(building => {
                 // Building base
@@ -279,6 +341,12 @@
                     ctx.fillRect(building.x + building.width / 2 - 5, building.y - 60, 10, 30);
                     // Horizontal part of cross
                     ctx.fillRect(building.x + building.width / 2 - 15, building.y - 50, 30, 10);
+                }
+
+                // Alhondiga door
+                if (building.isAlhondiga) {
+                    ctx.fillStyle = '#5C4033'; // Dark wood color
+                    ctx.fillRect(building.doorX, building.doorY, building.doorWidth, building.doorHeight);
                 }
             });
         }
@@ -307,21 +375,71 @@
             if (keys.left && player.x > 0) player.x -= player.speed;
             if (keys.right && player.x < canvas.width - player.width) player.x += player.speed;
             
-            // Ally movement (follow the leader)
+            // Ally & Morelos movement
             let target = player;
-            for (const ally of allies) {
-                const dx = target.x - ally.x;
-                const dy = target.y - ally.y;
+            const allCharacters = morelos ? [morelos, ...allies] : [...allies];
+            for (const char of allCharacters) {
+                const dx = target.x - char.x;
+                const dy = target.y - char.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
-                if (distance > 40) { // Keep some distance
-                    ally.x += (dx / distance) * (player.speed - 1);
-                    ally.y += (dy / distance) * (player.speed - 1);
+                if (distance > 45) {
+                    char.x += (dx / distance) * (player.speed - 1.5);
+                    char.y += (dy / distance) * (player.speed - 1.5);
                 }
-                target = ally;
+                target = char;
             }
 
-            // Collision detection
+            // Morelos shooting logic
+            if (morelos && boss && boss.state === 'chasing') {
+                morelos.shotCooldown--;
+                if(morelos.shotCooldown <= 0) {
+                    projectiles.push({ x: morelos.x, y: morelos.y + 22, speed: 6 });
+                    morelos.shotCooldown = 90; // 1.5 seconds cooldown
+                }
+            }
+
+            // Projectile logic
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+                 if (boss) {
+                    const dirX = (boss.x + boss.width / 2) - p.x;
+                    const dirY = (boss.y + boss.height / 2) - p.y;
+                    const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+                    if (distance > p.speed) {
+                        p.x += (dirX / distance) * p.speed;
+                        p.y += (dirY / distance) * p.speed;
+                    } else { // Close enough to register a hit
+                        p.x = boss.x + boss.width / 2;
+                    }
+                } else {
+                    projectiles.splice(i, 1);
+                    continue; 
+                }
+                
+                if (boss && p.x < boss.x + boss.width && p.x + 12 > boss.x && p.y < boss.y + boss.height && p.y + 6 > boss.y) {
+                    // Hit boss
+                    projectiles.splice(i, 1);
+                    boss.shotsTaken++;
+                    if (boss.shotsTaken >= 3) {
+                        boss.state = 'stunned';
+                        boss.shotsTaken = 0;
+                    }
+                }
+            }
+            
+            // Boss logic
+            if (boss && boss.state === 'chasing') {
+                const dx = player.x - boss.x;
+                const dy = player.y - boss.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance > 2) {
+                    boss.x += (dx / distance) * boss.speed;
+                    boss.y += (dy / distance) * boss.speed;
+                }
+            }
+            
+            // Regular enemy collision
             enemies.forEach((enemy) => {
                 if (
                     player.x < enemy.x + enemy.width &&
@@ -332,22 +450,74 @@
                     handleCollision(enemy);
                 }
             });
+
+            // Boss collision
+            if (boss) {
+                 if (
+                    player.x < boss.x + boss.width &&
+                    player.x + player.width > boss.x &&
+                    player.y < boss.y + boss.height &&
+                    player.y + player.height > boss.y
+                ) {
+                    // Trigger question if boss is idle (start of fight) or stunned
+                    if (boss.state === 'idle' || boss.state === 'stunned') {
+                        handleCollision(boss);
+                    }
+                }
+            }
+            
+            // Pipila Animation
+            if (pipila && pipila.active) {
+                pipila.x += pipila.speed;
+                if(pipila.finisher && pipila.x >= pipila.targetX) {
+                    pipila.active = false;
+                    setTimeout(() => endGame(true), 1000);
+                } else if (!pipila.finisher && pipila.x > canvas.width) {
+                    pipila.active = false;
+                }
+            }
+
+            // Pipila easter egg check
+            if (!pipilaEasterEggTriggered) {
+                const alhondiga = scenery.find(b => b.isAlhondiga);
+                if (alhondiga) {
+                    if (
+                        player.x < alhondiga.doorX + alhondiga.doorWidth &&
+                        player.x + player.width > alhondiga.doorX &&
+                        player.y < alhondiga.doorY + alhondiga.doorHeight &&
+                        player.y + player.height > alhondiga.doorY
+                    ) {
+                        triggerPipilaEasterEgg();
+                    }
+                }
+            }
         }
         
         function gameLoop() {
-            update();
+            if (gameActive) update();
             draw();
             requestAnimationFrame(gameLoop);
         }
 
         function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Change background for boss fight
+            if (boss) {
+                ctx.fillStyle = '#a13d3d'; // Dark red for boss battle
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            
             if (!player) return;
 
             drawScenery();
             drawAllies();
-            drawPlayer();
+            if (morelos) drawMorelos(morelos.x, morelos.y);
+            drawPlayer(player.x, player.y);
             drawEnemies();
+            drawBoss();
+            drawPipila();
+            drawProjectiles();
             
             // Draw UI
             ctx.fillStyle = 'white';
@@ -357,20 +527,67 @@
             ctx.textAlign = 'center';
             ctx.fillText(`Nivel: ${currentLevel}`, canvas.width / 2, 40);
             drawLives();
+
+            // Draw easter egg message
+            if (easterEggMessage) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(canvas.width / 2 - 300, canvas.height / 2 - 40, 600, 80);
+                ctx.fillStyle = '#FFD700';
+                ctx.textAlign = 'center';
+                ctx.font = '20px "Press Start 2P"';
+                ctx.fillText(easterEggMessage, canvas.width / 2, canvas.height / 2 + 5);
+            }
+
+            // Draw morelos message
+            if (morelosMessage) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(canvas.width / 2 - 300, canvas.height / 2 - 40, 600, 80);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.textAlign = 'center';
+                ctx.font = '20px "Press Start 2P"';
+                ctx.fillText(morelosMessage, canvas.width / 2, canvas.height / 2 + 5);
+            }
         }
 
         function handleCollision(enemy) {
             gameActive = false;
             currentEnemy = enemy;
+            if (enemy.isBoss) {
+                boss.state = 'idle';
+            }
             showQuiz();
+        }
+        
+        function triggerPipilaEasterEgg() {
+            pipilaEasterEggTriggered = true;
+            lives++;
+            score += 500;
+            easterEggMessage = '¡Por el Pípila! ¡Ganas una vida extra!';
+            
+            const alhondiga = scenery.find(b => b.isAlhondiga);
+            if (alhondiga) {
+                pipila = { x: alhondiga.doorX, y: alhondiga.doorY, speed: 4, active: true, finisher: false };
+            }
+
+            setTimeout(() => { easterEggMessage = ''; }, 3000);
+        }
+        
+        function triggerPipilaFinisher() {
+            gameActive = false; // Stop all updates
+            const finalBossX = boss.x;
+            boss = null; // Boss is defeated
+            const alhondiga = scenery.find(b => b.isAlhondiga);
+             if (alhondiga) {
+                pipila = { x: alhondiga.doorX, y: alhondiga.doorY, speed: 6, active: true, finisher: true, targetX: finalBossX };
+            }
         }
 
         function showQuiz() {
             if (currentQuestionIndex >= questions.length) {
-                currentQuestionIndex = 0; // Loop back to the first question if we run out
+                currentQuestionIndex = 0; // Loop back
             }
             const question = questions[currentQuestionIndex];
-            currentQuestionIndex++; // Prepare for the next question
+            currentQuestionIndex++; 
 
             questionTextEl.textContent = question.question;
             answersContainerEl.innerHTML = '';
@@ -387,27 +604,48 @@
 
         function selectAnswer(isCorrect) {
             quizModalContainer.classList.add('hidden');
-            if (isCorrect) {
-                score += 100;
-                const newAlly = { x: player.x, y: player.y };
-                allies.push(newAlly);
-                
-                enemies = enemies.filter(e => e !== currentEnemy);
-                if (enemies.length === 0) {
-                    if (currentLevel >= levelConfig.length) {
-                        endGame(true);
-                    } else {
+            if (currentEnemy.isBoss) {
+                // Boss Logic
+                player.x = 80; // Push player back regardless
+                player.y = canvas.height / 2;
+                if (isCorrect) {
+                    score += 200;
+                    boss.health--;
+                    if (boss.health === 2) { // After 1st correct answer
+                        morelos = { x: player.x - 40, y: player.y + 20, shotCooldown: 90 };
+                        morelosMessage = '¡Morelos se une a la batalla!';
+                        setTimeout(() => { morelosMessage = ''; }, 3000);
+                    }
+                    if (boss.health <= 0) {
+                        triggerPipilaFinisher();
+                        return; // Stop here, animation will handle win
+                    }
+                } else {
+                    lives--;
+                    let newEnemy;
+                     do {
+                        newEnemy = { x: boss.x - 60, y: boss.y + (Math.random() * 80 - 40), width: 25, height: 35 };
+                    } while(isCollidingWithScenery(newEnemy));
+                    enemies.push(newEnemy);
+                    if (lives <= 0) { endGame(false); return; }
+                }
+                boss.state = 'chasing';
+                gameActive = true;
+            } else {
+                // Regular Enemy Logic
+                if (isCorrect) {
+                    score += 100;
+                    const newAlly = { x: player.x, y: player.y };
+                    allies.push(newAlly);
+                    enemies = enemies.filter(e => e !== currentEnemy);
+                    if (enemies.length === 0) {
                         showLevelTransition();
                     }
+                } else {
+                    lives--;
+                    if (lives <= 0) { endGame(false); return; }
                 }
-            } else {
-                lives--;
-                if (lives <= 0) {
-                    endGame(false);
-                }
-            }
-            if(lives > 0 && enemies.length > 0) {
-                 gameActive = true;
+                if (lives > 0) gameActive = true;
             }
             currentEnemy = null;
         }
@@ -415,6 +653,10 @@
         function showLevelTransition() {
             gameActive = false;
             currentLevel++;
+            if (currentLevel > levelConfig.length) {
+                endGame(true);
+                return;
+            }
             levelText.textContent = `Nivel ${currentLevel}`;
             levelTransitionScreen.classList.remove('hidden');
 
@@ -426,13 +668,15 @@
 
         function endGame(playerWon) {
             gameActive = false;
-            gameOverScreen.classList.remove('hidden');
-            finalScoreEl.textContent = score;
+            boss = null;
+            
             if(playerWon) {
-                gameOverTitle.textContent = "¡Victoria!";
+                gameOverTitle.textContent = "¡VIVA MÉXICO!";
             } else {
                 gameOverTitle.textContent = "¡Fin del Juego!";
             }
+            finalScoreEl.textContent = score;
+            gameOverScreen.classList.remove('hidden');
         }
         
         function isCollidingWithScenery(rect) {
@@ -452,21 +696,31 @@
         function startLevel(levelNum) {
             player.x = 50;
             player.y = canvas.height / 2 - 25;
-
             enemies = [];
-            const numEnemies = levelConfig[levelNum - 1].enemies;
+            boss = null;
+            morelos = null;
+            projectiles = [];
+            
+            const config = levelConfig[levelNum - 1];
 
-            for (let i = 0; i < numEnemies; i++) {
-                let newEnemy;
-                do {
-                    newEnemy = {
-                        x: Math.random() * (canvas.width - 100) + 50,
-                        y: Math.random() * (canvas.height - 100) + 50,
-                        width: 25,
-                        height: 35
-                    };
-                } while(isCollidingWithScenery(newEnemy));
-                enemies.push(newEnemy);
+            if (config.isBossLevel) {
+                boss = {
+                    x: canvas.width - 200, y: canvas.height / 2 - 45,
+                    width: 60, height: 91, health: 3, speed: 1.5, // Bigger collision box
+                    isBoss: true, state: 'idle', shotsTaken: 0
+                };
+            } else {
+                for (let i = 0; i < config.enemies; i++) {
+                    let newEnemy;
+                    do {
+                        newEnemy = {
+                            x: Math.random() * (canvas.width - 200) + 150,
+                            y: Math.random() * (canvas.height - 100) + 50,
+                            width: 25, height: 35
+                        };
+                    } while(isCollidingWithScenery(newEnemy));
+                    enemies.push(newEnemy);
+                }
             }
             gameActive = true;
         }
@@ -479,13 +733,23 @@
                 width: 150, height: 200, 
                 color: '#E0C9A6', roofColor: '#8B4513', isCathedral: true 
             });
+            // Alhondiga (Pipila Easter Egg)
+            const alhondiga = { 
+                x: 100, y: 80, 
+                width: 150, height: 180, 
+                color: '#A9A9A9', roofColor: '#696969', 
+                isAlhondiga: true,
+                doorX: 100 + 55, doorY: 80 + 120,
+                doorWidth: 40, doorHeight: 60
+            };
+            scenery.push(alhondiga);
+
             // Other buildings
-            scenery.push({ x: 100, y: 80, width: 120, height: 150, color: '#D2B48C', roofColor: '#A0522D' });
             scenery.push({ x: canvas.width - 220, y: 80, width: 120, height: 180, color: '#C68642', roofColor: '#A0522D' });
             scenery.push({ x: 100, y: canvas.height - 230, width: 150, height: 150, color: '#DEB887', roofColor: '#A0522D' });
             scenery.push({ x: canvas.width - 250, y: canvas.height - 250, width: 150, height: 170, color: '#D2B48C', roofColor: '#A0522D' });
         }
-
+        
         function startGame() {
             player = { x: 50, y: canvas.height / 2 - 25, width: 65, height: 45, speed: 5 };
             allies = [];
@@ -493,6 +757,10 @@
             lives = 3;
             currentLevel = 1;
             currentQuestionIndex = 0;
+            pipila = null;
+            pipilaEasterEggTriggered = false;
+            easterEggMessage = '';
+            morelosMessage = '';
             
             createScenery();
 
@@ -506,7 +774,7 @@
         // Event Listeners
         window.addEventListener('resize', () => {
             resizeCanvas();
-            createScenery(); // Re-create scenery on resize to adapt to new canvas size
+            createScenery(); 
         });
         
         startBtn.addEventListener('click', startGame);
@@ -532,7 +800,7 @@
             const direction = btn.dataset.direction;
             btn.addEventListener('mousedown', () => keys[direction] = true);
             btn.addEventListener('mouseup', () => keys[direction] = false);
-            btn.addEventListener('mouseleave', () => keys[direction] = false); // Stop if mouse leaves button
+            btn.addEventListener('mouseleave', () => keys[direction] = false); 
             btn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 keys[direction] = true;
@@ -549,4 +817,8 @@
     </script>
 </body>
 </html>
+
+
+
+
 
